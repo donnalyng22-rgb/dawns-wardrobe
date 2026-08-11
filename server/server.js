@@ -43,6 +43,7 @@ if (EMAIL_USER && EMAIL_PASS && NOTIFY_EMAIL) {
 
 if (mailTransport) {
   console.log('Order email notifications enabled to', NOTIFY_EMAIL, 'from', EMAIL_FROM);
+  console.log('Email transport configured with', EMAIL_SERVICE ? `service=${EMAIL_SERVICE}` : `host=${EMAIL_HOST}:${EMAIL_PORT}`);
 } else {
   console.log('Order email notifications disabled. Set EMAIL_USER, EMAIL_PASS, and NOTIFY_EMAIL plus EMAIL_SERVICE or EMAIL_HOST to enable.');
 }
@@ -112,7 +113,7 @@ async function sendOrderNotification(order) {
 
   try {
     await mailTransport.sendMail({
-      from: EMAIL_USER,
+      from: EMAIL_FROM,
       to: NOTIFY_EMAIL,
       subject: `New order received — ${order.id}`,
       text: `New order ${order.id} from ${order.customerName} (${order.customerEmail}). Total ${formatPHP(order.total)}.`,
