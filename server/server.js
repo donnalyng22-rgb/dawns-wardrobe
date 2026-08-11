@@ -3,6 +3,7 @@
    Express API + static file server backed by SQLite (db.js).
    ========================================================= */
 
+require('dotenv').config();
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -13,21 +14,37 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const EMAIL_SERVICE = process.env.EMAIL_SERVICE || 'gmail';
+const EMAIL_SERVICE = process.env.EMAIL_SERVICE;
+const EMAIL_HOST = process.env.EMAIL_HOST;
+const EMAIL_PORT = process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : undefined;
+const EMAIL_SECURE = process.env.EMAIL_SECURE === 'true' || EMAIL_PORT === 465;
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || EMAIL_USER;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || EMAIL_USER;
-const mailTransport = EMAIL_USER && EMAIL_PASS && NOTIFY_EMAIL
-  ? nodemailer.createTransport({
-      service: EMAIL_SERVICE,
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
-    })
-  : null;
+
+let mailTransport = null;
+if (EMAIL_USER && EMAIL_PASS && NOTIFY_EMAIL) {
+  const transportOptions = EMAIL_HOST
+    ? {
+        host: EMAIL_HOST,
+        port: EMAIL_PORT || 587,
+        secure: EMAIL_SECURE,
+        auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+      }
+    : EMAIL_SERVICE
+      ? { service: EMAIL_SERVICE, auth: { user: EMAIL_USER, pass: EMAIL_PASS } }
+      : null;
+
+  if (transportOptions) {
+    mailTransport = nodemailer.createTransport(transportOptions);
+  }
+}
 
 if (mailTransport) {
-  console.log('Order email notifications enabled for', NOTIFY_EMAIL);
+  console.log('Order email notifications enabled to', NOTIFY_EMAIL, 'from', EMAIL_FROM);
 } else {
-  console.log('Order email notifications disabled. Set EMAIL_USER, EMAIL_PASS, and NOTIFY_EMAIL to enable.');
+  console.log('Order email notifications disabled. Set EMAIL_USER, EMAIL_PASS, and NOTIFY_EMAIL plus EMAIL_SERVICE or EMAIL_HOST to enable.');
 }
 
 app.use(cors());

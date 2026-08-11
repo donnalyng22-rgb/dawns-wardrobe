@@ -16,3 +16,11 @@ services:
         value: ''
       - key: NOTIFY_EMAIL
         value: ''
+      - key: EMAIL_HOST
+        value: ''
+      - key: EMAIL_PORT
+        value: ''
+      - key: EMAIL_SECURE
+        value: 'false'
+      - key: EMAIL_FROM
+        value: ''
