@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dawn's Wardrobe — Shop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="shop.html" class="brand">
+      <span class="stitch-dot"></span>
+      <div>DAWN'S WARDROBE<small>MONOCHROME CLOTHING CO.</small></div>
+    </a>
+    <div class="nav-right">
+      <span class="nav-user">Hi, <b id="userName">friend</b></span>
+      <a href="admin.html" class="btn btn-ghost" style="padding:10px 16px;">Admin</a>
+      <button class="btn btn-ghost" id="logoutBtn" style="padding:10px 16px;">Sign out</button>
+      <button class="cart-btn" id="cartBtn" aria-label="Open cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="21" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="21" r="1.2" fill="currentColor" stroke="none"/><path d="M2.5 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+        <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<section class="shop-hero">
+  <div class="container">
+    <p class="eyebrow">New drop — quiet colorway</p>
+    <h1>Everything you need, in one restrained palette.</h1>
+    <p class="sub">Shirts, hoodies, jorts and caps cut from the same monochrome thread. Pick your pieces, choose a size and color, then check out in a minute.</p>
+  </div>
+</section>
+
+<nav class="filters container" id="filters"></nav>
+
+<main class="container">
+  <div class="grid" id="grid"></div>
+</main>
+
+<footer class="site-foot container">
+  <span>© DAWN'S WARDROBE</span>
+  <span>FREE RETURNS WITHIN 7 DAYS · PH DELIVERY ONLY</span>
+</footer>
+
+<!-- cart drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="cart-drawer" id="cartDrawer">
+  <div class="cart-head">
+    <h2>Your Cart</h2>
+    <button class="cart-close" id="cartClose" aria-label="Close cart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="cart-items" id="cartItems"></div>
+  <div class="cart-foot">
+    <div class="cart-total-row"><span>Subtotal</span><span id="cSubtotal">₱0.00</span></div>
+    <div class="cart-total-row"><span>Shipping</span><span id="cShipping">₱0.00</span></div>
+    <div class="cart-total-row grand"><span>Total</span><span id="cTotal">₱0.00</span></div>
+    <button class="btn btn-primary btn-block" id="checkoutBtn" disabled>Proceed to payment</button>
+  </div>
+</aside>
+
+<!-- quick-view / zoom modal -->
+<div class="qv-overlay" id="qvOverlay">
+  <div class="qv-modal" id="qvModal">
+    <button class="qv-close" id="qvClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <div class="qv-image-wrap" id="qvImageWrap">
+      <div class="qv-image" id="qvImage"></div>
+      <span class="qv-zoom-tag" id="qvZoomTag">Tap image to zoom</span>
+    </div>
+    <div class="qv-info">
+      <p class="product-cat" id="qvCat"></p>
+      <h3 id="qvName"></h3>
+      <span class="hangtag" id="qvPrice"></span>
+
+      <div class="opt-row">
+        <span class="step-label" style="margin:0 0 10px;">Size</span>
+        <div class="size-row" id="qvSizeRow"></div>
+      </div>
+
+      <div class="opt-row">
+        <span class="step-label" style="margin:0 0 10px;">Color — <span id="qvColorName"></span></span>
+        <div class="color-row" id="qvColorRow"></div>
+      </div>
+
+      <div class="qv-qty-row">
+        <span class="step-label" style="margin:0;">Qty</span>
+        <div class="qty-row">
+          <button class="qty-btn" id="qvDec">−</button>
+          <span class="qty-val" id="qvQty">1</span>
+          <button class="qty-btn" id="qvInc">+</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="qvAdd">Add to cart</button>
+    </div>
+  </div>
+</div>
+
+<script src="function.js"></script>
+<script>
+(async () => {
+  const user = await requireAuth();
+  if (!user) return; // requireAuth already redirected
+  document.getElementById('userName').textContent = user.name.split(' ')[0];
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await logout();
+    window.location.href = 'reg.html';
+  });
+
+  await loadProducts(); // populates global PRODUCTS from the API
+
+  const grid = document.getElementById('grid');
+  const filtersEl = document.getElementById('filters');
+  let activeCat = 'All';
+
+  // build filter chips
+  CATEGORIES.forEach(cat => {
+    const chip = document.createElement('button');
+    chip.className = 'filter-chip' + (cat === 'All' ? ' active' : '');
+    chip.textContent = cat;
+    chip.addEventListener('click', () => {
+      activeCat = cat;
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      renderGrid();
+    });
+    filtersEl.appendChild(chip);
+  });
+
+  function renderGrid() {
+    const items = activeCat === 'All' ? PRODUCTS : PRODUCTS.filter(p => p.cat === activeCat);
+    grid.innerHTML = items.map(p => `
+      <article class="product-card" data-id="${p.id}">
+        <div class="product-media" data-id="${p.id}">
+          ${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy">` : ICONS[p.icon]}
+          <div class="view-hint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            <span>Tap to view</span>
+          </div>
+          <div class="zoom-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          </div>
+        </div>
+        <div class="product-body">
+          <p class="product-cat">${p.cat}</p>
+          <h3 class="product-name">${p.name}</h3>
+          <div class="product-foot">
+            <span class="hangtag">${formatPHP(p.price)}</span>
+            <button class="add-btn" data-id="${p.id}" aria-label="Select options for ${p.name}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+        </div>
+      </article>
+    `).join('');
+  }
+  renderGrid();
+
+  /* ---- add-btn / product image both open quick view, since size + color must be chosen ---- */
+  grid.addEventListener('click', (e) => {
+    const addBtn = e.target.closest('.add-btn');
+    if (addBtn) { openQuickView(addBtn.dataset.id); return; }
+    const media = e.target.closest('.product-media');
+    if (media) { openQuickView(media.dataset.id); }
+  });
+
+  /* ---- quick view / zoom modal ---- */
+  const qvOverlay = document.getElementById('qvOverlay');
+  const qvImage = document.getElementById('qvImage');
+  const qvImageWrap = document.getElementById('qvImageWrap');
+  const qvZoomTag = document.getElementById('qvZoomTag');
+  const qvSizeRow = document.getElementById('qvSizeRow');
+  const qvColorRow = document.getElementById('qvColorRow');
+  const qvColorName = document.getElementById('qvColorName');
+  let qvProduct = null;
+  let qvQty = 1;
+  let qvSize = null;
+  let qvColor = null;
+
+  function renderSizeRow() {
+    qvSizeRow.innerHTML = qvProduct.sizes.map(s => `
+      <button class="size-chip${s === qvSize ? ' active' : ''}" data-size="${s}">${s}</button>
+    `).join('');
+  }
+  function renderColorRow() {
+    qvColorRow.innerHTML = qvProduct.colors.map(c => `
+      <button class="color-swatch${c.name === qvColor ? ' active' : ''}" data-color="${c.name}" style="background:${c.hex}" aria-label="${c.name}" title="${c.name}"></button>
+    `).join('');
+    qvColorName.textContent = qvColor;
+  }
+
+  function openQuickView(id) {
+    const p = PRODUCTS.find(p => p.id === id);
+    if (!p) return;
+    qvProduct = p;
+    qvQty = 1;
+    qvSize = p.sizes[0];
+    qvColor = p.colors[0].name;
+
+    qvImage.classList.remove('zoomed');
+    qvImage.style.transformOrigin = 'center center';
+    qvImage.innerHTML = p.image
+      ? `<img src="${p.image}" alt="${p.name}">`
+      : `<div class="qv-icon">${ICONS[p.icon]}</div>`;
+    qvZoomTag.style.display = p.image ? 'block' : 'none';
+
+    document.getElementById('qvCat').textContent = p.cat;
+    document.getElementById('qvName').textContent = p.name;
+    document.getElementById('qvPrice').textContent = formatPHP(p.price);
+    document.getElementById('qvQty').textContent = qvQty;
+
+    renderSizeRow();
+    renderColorRow();
+
+    qvOverlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeQuickView() {
+    qvOverlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('qvClose').addEventListener('click', closeQuickView);
+  qvOverlay.addEventListener('click', (e) => { if (e.target === qvOverlay) closeQuickView(); });
+
+  qvSizeRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.size-chip');
+    if (!btn) return;
+    qvSize = btn.dataset.size;
+    renderSizeRow();
+  });
+  qvColorRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.color-swatch');
+    if (!btn) return;
+    qvColor = btn.dataset.color;
+    renderColorRow();
+  });
+
+  /* tap image to zoom in/out, centered on tap position */
+  qvImageWrap.addEventListener('click', (e) => {
+    if (!qvProduct || !qvProduct.image) return;
+    if (e.target.closest('.qv-close')) return;
+    const rect = qvImageWrap.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const isZoomed = qvImage.classList.contains('zoomed');
+    if (isZoomed) {
+      qvImage.classList.remove('zoomed');
+    } else {
+      qvImage.style.transformOrigin = `${x}% ${y}%`;
+      qvImage.classList.add('zoomed');
+    }
+  });
+
+  document.getElementById('qvDec').addEventListener('click', () => {
+    qvQty = Math.max(1, qvQty - 1);
+    document.getElementById('qvQty').textContent = qvQty;
+  });
+  document.getElementById('qvInc').addEventListener('click', () => {
+    qvQty += 1;
+    document.getElementById('qvQty').textContent = qvQty;
+  });
+  document.getElementById('qvAdd').addEventListener('click', async () => {
+    if (!qvProduct) return;
+    const addBtn = document.getElementById('qvAdd');
+    addBtn.disabled = true;
+    try {
+      await addToCart(qvProduct.id, qvQty, qvSize, qvColor);
+      await refreshCartUI(true);
+      flyToCart(addBtn, formatPHP(qvProduct.price * qvQty));
+      closeQuickView();
+      openCart();
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      addBtn.disabled = false;
+    }
+  });
+
+  /* ---- cart drawer ---- */
+  const cartBtn = document.getElementById('cartBtn');
+  const cartDrawer = document.getElementById('cartDrawer');
+  const overlay = document.getElementById('overlay');
+  const cartCountEl = document.getElementById('cartCount');
+  const cartItemsEl = document.getElementById('cartItems');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+
+  function openCart() { cartDrawer.classList.add('open'); overlay.classList.add('show'); }
+  function closeCart() { cartDrawer.classList.remove('open'); overlay.classList.remove('show'); }
+  cartBtn.addEventListener('click', openCart);
+  document.getElementById('cartClose').addEventListener('click', closeCart);
+  overlay.addEventListener('click', closeCart);
+
+  async function refreshCartUI(bump) {
+    const cart = await fetchCart(); // { lines, subtotal, shipping, total }
+    const count = cart.lines.reduce((a, l) => a + l.qty, 0);
+    cartCountEl.textContent = count;
+    cartCountEl.classList.toggle('show', count > 0);
+    if (bump) { cartCountEl.classList.remove('bump'); void cartCountEl.offsetWidth; cartCountEl.classList.add('bump'); }
+
+    if (cart.lines.length === 0) {
+      cartItemsEl.innerHTML = `
+        <div class="cart-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1.2"/><circle cx="19" cy="21" r="1.2"/><path d="M2.5 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+          Your cart is empty.<br>Add a piece from the shop.
+        </div>`;
+    } else {
+      cartItemsEl.innerHTML = cart.lines.map(l => `
+        <div class="cart-item" data-item-id="${l.itemId}">
+          <div class="cart-item-media">${l.image ? `<img src="${l.image}" alt="${l.name}">` : ICONS[l.icon]}</div>
+          <div>
+            <div class="cart-item-name">${l.name}</div>
+            <div class="cart-item-cat">${l.cat}</div>
+            <div class="cart-item-variant">Size: ${l.size} · Color: ${l.color}</div>
+            <div class="qty-row">
+              <button class="qty-btn" data-action="dec" data-item-id="${l.itemId}">−</button>
+              <span class="qty-val">${l.qty}</span>
+              <button class="qty-btn" data-action="inc" data-item-id="${l.itemId}">+</button>
+            </div>
+          </div>
+          <div>
+            <div class="cart-item-price">${formatPHP(l.lineTotal)}</div>
+            <button class="remove-btn" data-action="remove" data-item-id="${l.itemId}">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('cSubtotal').textContent = formatPHP(cart.subtotal);
+    document.getElementById('cShipping').textContent = formatPHP(cart.shipping);
+    document.getElementById('cTotal').textContent = formatPHP(cart.total);
+    checkoutBtn.disabled = cart.lines.length === 0;
+    return cart;
+  }
+
+  cartItemsEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const itemId = btn.dataset.itemId;
+    try {
+      if (btn.dataset.action === 'inc' || btn.dataset.action === 'dec') {
+        const row = btn.closest('.cart-item');
+        const currentQty = parseInt(row.querySelector('.qty-val').textContent, 10);
+        const nextQty = btn.dataset.action === 'inc' ? currentQty + 1 : currentQty - 1;
+        await setCartQty(itemId, nextQty);
+      }
+      if (btn.dataset.action === 'remove') await removeCartItem(itemId);
+      await refreshCartUI(false);
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  checkoutBtn.addEventListener('click', () => {
+    window.location.href = 'payment.html';
+  });
+
+  await refreshCartUI(false);
+})();
+</script>
+</body>
+</html>

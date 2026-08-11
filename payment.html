@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dawn's Wardrobe — Payment</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="shop.html" class="brand">
+      <span class="stitch-dot"></span>
+      <div>DAWN'S WARDROBE<small>MONOCHROME CLOTHING CO.</small></div>
+    </a>
+    <div class="nav-right">
+      <span class="nav-user">Hi, <b id="userName">friend</b></span>
+    </div>
+  </div>
+</header>
+
+<main class="pay-shell container">
+  <h1 class="pay-title">Complete your order</h1>
+  <p class="pay-sub">Choose how you'd like to pay and confirm your delivery details.</p>
+
+  <div class="pay-grid">
+    <div>
+      <p class="step-label">Delivery address</p>
+      <div class="pay-panel">
+        <h3>Where should we send it?</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label for="addrLine">Address</label>
+          <input type="text" id="addrLine" placeholder="Unit / Street, Barangay, City, Province">
+        </div>
+      </div>
+
+      <p class="step-label">Payment method</p>
+      <div class="method-grid">
+        <button class="method-card active" data-method="cash">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Cash</span>
+        </button>
+        <button class="method-card" data-method="gcash">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+          <span>GCash</span>
+        </button>
+        <button class="method-card" data-method="card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <span>Card</span>
+        </button>
+      </div>
+
+      <div class="pay-panel" id="methodPanel"></div>
+
+      <button class="btn btn-primary btn-block" id="placeOrderBtn">Place order</button>
+    </div>
+
+    <div>
+      <p class="step-label">Order summary</p>
+      <div class="receipt">
+        <div class="receipt-punch"></div>
+        <div class="receipt-inner">
+          <h3>DAWN'S WARDROBE</h3>
+          <p class="rid">Order preview</p>
+          <div id="receiptLines"></div>
+          <div class="receipt-line"><span>Shipping</span><span id="receiptShipping">₱0.00</span></div>
+          <div class="receipt-total"><span>Total</span><span id="receiptTotal">₱0.00</span></div>
+        </div>
+        <div class="dotted-edge"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- delivery / success overlay -->
+<div class="delivery-overlay" id="deliveryOverlay">
+  <div class="road">
+    <div class="truck">
+      <svg viewBox="0 0 100 50" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round">
+        <path d="M2 34 H60 V14 H70 L90 24 V34 H96"/>
+        <circle cx="22" cy="38" r="6"/>
+        <circle cx="78" cy="38" r="6"/>
+      </svg>
+    </div>
+  </div>
+  <p class="delivery-status" id="deliveryStatus">Placing your order…</p>
+
+  <div class="success-block" id="successBlock" style="display:none;">
+    <div class="success-tag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+    </div>
+    <h2>Order placed</h2>
+    <p>We'll get it packed and on its way.</p>
+    <p class="order-code" id="orderCode">DW-000000</p>
+    <a href="shop.html" class="btn btn-primary">Back to shop</a>
+  </div>
+</div>
+
+<script src="function.js"></script>
+<script>
+(async () => {
+  const user = await requireAuth();
+  if (!user) return;
+  document.getElementById('userName').textContent = user.name.split(' ')[0];
+
+  const methodPanels = {
+    cash: `<div class="cash-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+      Pay in cash when your order arrives.
+    </div>`,
+    gcash: `<div class="gcash-box">
+      <div class="qr"></div>
+      <p>Scan with the GCash app, or send to</p>
+      <p class="num">0917 000 0000</p>
+    </div>`,
+    card: `<div class="row-2">
+      <div class="field"><label>Card number</label><input type="text" placeholder="4242 4242 4242 4242"></div>
+      <div class="field"><label>Expiry</label><input type="text" placeholder="MM / YY"></div>
+      <div class="field"><label>CVC</label><input type="text" placeholder="123"></div>
+      <div class="field"><label>Name on card</label><input type="text" placeholder="Juana Dela Cruz"></div>
+    </div>`
+  };
+
+  let method = 'cash';
+  const methodPanel = document.getElementById('methodPanel');
+  function renderMethodPanel() { methodPanel.innerHTML = methodPanels[method]; }
+  renderMethodPanel();
+
+  document.querySelectorAll('.method-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.method-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      method = card.dataset.method;
+      renderMethodPanel();
+    });
+  });
+
+  async function renderReceipt() {
+    const cart = await fetchCart();
+    const linesEl = document.getElementById('receiptLines');
+    if (cart.lines.length === 0) {
+      linesEl.innerHTML = `<div class="receipt-line"><span>Your cart is empty</span><span></span></div>`;
+    } else {
+      linesEl.innerHTML = cart.lines.map(l => `
+        <div class="receipt-line">
+          <span>${l.name} × ${l.qty}<span class="receipt-variant">${l.size} · ${l.color}</span></span>
+          <span>${formatPHP(l.lineTotal)}</span>
+        </div>
+      `).join('');
+    }
+    document.getElementById('receiptShipping').textContent = formatPHP(cart.shipping);
+    document.getElementById('receiptTotal').textContent = formatPHP(cart.total);
+    document.getElementById('placeOrderBtn').disabled = cart.lines.length === 0;
+    return cart;
+  }
+  const initialCart = await renderReceipt();
+  if (initialCart.lines.length === 0) {
+    document.getElementById('placeOrderBtn').textContent = 'Your cart is empty';
+  }
+
+  document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+    const address = document.getElementById('addrLine').value.trim();
+    if (!address) { showToast('Please enter a delivery address'); return; }
+
+    const btn = document.getElementById('placeOrderBtn');
+    btn.disabled = true;
+
+    let order;
+    try {
+      order = await checkout(method, address);
+    } catch (err) {
+      showToast(err.message);
+      btn.disabled = false;
+      return;
+    }
+
+    const overlay = document.getElementById('deliveryOverlay');
+    overlay.classList.add('show');
+
+    setTimeout(() => {
+      document.getElementById('deliveryStatus').textContent = 'Delivered to your door';
+      document.getElementById('successBlock').style.display = 'block';
+      document.getElementById('orderCode').textContent = order.id;
+    }, 2600);
+  });
+})();
+</script>
+</body>
+</html>

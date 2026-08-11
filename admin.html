@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dawn's Wardrobe — Orders Admin</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* ---------------- admin-only styles (uses tokens from style.css) ---------------- */
+  .admin-shell{ padding:32px 0 80px; }
+  .admin-head{ display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:18px; margin-bottom:26px; }
+  .admin-head h1{ font-family:var(--display); font-size:clamp(26px,3.4vw,36px); letter-spacing:.5px; }
+  .admin-head .sub{ color:var(--muted); font-size:14px; margin-top:6px; }
+
+  .stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px; }
+  @media (max-width:760px){ .stat-row{ grid-template-columns:1fr 1fr; } }
+  .stat-card{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; }
+  .stat-card .label{ font-family:var(--mono); font-size:11.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
+  .stat-card .val{ font-family:var(--display); font-size:26px; margin-top:8px; }
+
+  .toolbar{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:18px; }
+  .toolbar input[type="text"], .toolbar select{
+    background:var(--panel); border:1px solid var(--line); color:var(--fog);
+    padding:11px 14px; font-family:var(--body); font-size:14px; border-radius:var(--radius);
+  }
+  .toolbar input[type="text"]{ flex:1; min-width:200px; }
+  .toolbar .btn{ padding:11px 18px; }
+
+  .table-wrap{ border:1px solid var(--line); border-radius:var(--radius); overflow-x:auto; }
+  table.orders-table{ width:100%; border-collapse:collapse; min-width:760px; }
+  table.orders-table th{
+    text-align:left; font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--muted); padding:14px 16px; border-bottom:1px solid var(--line); background:var(--panel);
+    position:sticky; top:0;
+  }
+  table.orders-table td{ padding:14px 16px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:middle; }
+  table.orders-table tbody tr:hover{ background:var(--card); }
+  table.orders-table tbody tr:last-child td{ border-bottom:none; }
+  .ord-id{ font-family:var(--mono); font-size:12.5px; color:var(--fog); }
+  .ord-date{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .ord-cust b{ display:block; }
+  .ord-cust span{ font-size:12.5px; color:var(--muted); }
+  .ord-total{ font-family:var(--mono); font-weight:600; }
+
+  .status-select{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.5px; text-transform:uppercase;
+    padding:7px 10px; border-radius:20px; border:1px solid var(--line-hi); background:transparent; color:var(--fog);
+  }
+  .status-select.st-processing{ color:#e9e8e4; border-color:var(--line-hi); }
+  .status-select.st-packed{ color:#cfe0ff; border-color:#5a76a8; }
+  .status-select.st-out-for-delivery{ color:#ffe1a8; border-color:#a8843e; }
+  .status-select.st-delivered{ color:#bdf0c8; border-color:#3e9a55; }
+  .status-select.st-cancelled{ color:#f0c4c4; border-color:#a85a5a; }
+
+  .row-actions{ display:flex; gap:8px; }
+  .icon-btn{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--line-hi); background:transparent; color:var(--fog);
+    display:flex; align-items:center; justify-content:center; transition:all .2s var(--ease);
+  }
+  .icon-btn:hover{ background:var(--card); border-color:var(--fog); }
+  .icon-btn svg{ width:15px; height:15px; }
+  .icon-btn.danger:hover{ border-color:#e6b3b3; color:#f0c4c4; }
+
+  .empty-state{ text-align:center; padding:70px 20px; color:var(--muted); }
+  .empty-state svg{ width:40px; height:40px; margin:0 auto 16px; opacity:.5; }
+  .empty-state .hint{ font-family:var(--mono); font-size:12.5px; margin-top:8px; }
+
+  /* ---------------- modal ---------------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:100;
+    opacity:0; pointer-events:none; transition:opacity .25s var(--ease); padding:24px;
+  }
+  .modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .modal-box{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    width:100%; max-width:560px; max-height:86vh; overflow-y:auto;
+    transform:translateY(14px); transition:transform .25s var(--ease);
+  }
+  .modal-overlay.show .modal-box{ transform:translateY(0); }
+  .modal-head{ display:flex; justify-content:space-between; align-items:flex-start; padding:24px 26px; border-bottom:1px solid var(--line); }
+  .modal-head h2{ font-family:var(--display); font-size:20px; }
+  .modal-head p{ font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:6px; }
+  .modal-close{ background:none; border:none; color:var(--muted); width:30px; height:30px; }
+  .modal-close svg{ width:18px; height:18px; }
+  .modal-body{ padding:22px 26px; }
+  .modal-body h4{ font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin:18px 0 10px; }
+  .modal-body h4:first-child{ margin-top:0; }
+  .m-item{ display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px dashed var(--line); font-size:13.5px; }
+  .m-item:last-child{ border-bottom:none; }
+  .m-item .name{ color:var(--fog); }
+  .m-item .meta{ color:var(--muted); font-size:12px; }
+  .m-total-row{ display:flex; justify-content:space-between; font-size:14px; padding:6px 0; color:var(--muted); }
+  .m-total-row.grand{ color:var(--fog); font-weight:700; font-size:16px; padding-top:10px; border-top:1px solid var(--line); margin-top:6px; }
+  .m-addr{ font-size:13.5px; color:var(--fog); line-height:1.6; }
+  .modal-foot{ padding:20px 26px; border-top:1px solid var(--line); display:flex; gap:10px; flex-wrap:wrap; }
+  .modal-foot .btn{ flex:1; min-width:140px; }
+
+  /* ---------------- print ---------------- */
+  #printReceipt{ display:none; }
+
+  @media print{
+    body.printing-list *{ visibility:hidden; }
+    body.printing-list .table-wrap, body.printing-list .table-wrap *{ visibility:visible; }
+    body.printing-list .table-wrap{ position:absolute; left:0; top:0; width:100%; border:none; }
+    body.printing-list .row-actions, body.printing-list .status-select{ display:none; }
+
+    body.printing-receipt *{ visibility:hidden; }
+    body.printing-receipt #printReceipt, body.printing-receipt #printReceipt *{ visibility:visible; }
+    body.printing-receipt #printReceipt{ display:block; position:absolute; left:0; top:0; width:100%; }
+
+    body.printing-list, body.printing-receipt{ background:#fff !important; }
+    .table-wrap table{ color:#000; }
+    table.orders-table th, table.orders-table td{ color:#000 !important; border-color:#ccc !important; }
+    table.orders-table th{ background:#fff !important; }
+    #printReceipt{ color:#000; font-family:var(--body); padding:20px; }
+    #printReceipt h2{ font-family:var(--display); font-size:22px; margin-bottom:4px; }
+    #printReceipt .p-id{ font-family:var(--mono); font-size:13px; color:#333; margin-bottom:18px; }
+    #printReceipt table{ width:100%; border-collapse:collapse; margin:14px 0; }
+    #printReceipt th, #printReceipt td{ text-align:left; padding:8px 4px; border-bottom:1px solid #ccc; font-size:13px; }
+    #printReceipt .p-total{ display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding-top:10px; border-top:1px solid #000; margin-top:6px; }
+    .grain, .topbar, .toolbar, .stat-row, .admin-head .btn, .modal-overlay{ display:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="shop.html" class="brand">
+      <span class="stitch-dot"></span>
+      <div>DAWN'S WARDROBE<small>ORDERS ADMIN</small></div>
+    </a>
+    <div class="nav-right">
+      <span class="nav-user">Hi, <b id="userName">friend</b></span>
+      <a href="shop.html" class="btn btn-ghost" style="padding:10px 16px;">Back to shop</a>
+    </div>
+  </div>
+</header>
+
+<main class="admin-shell container">
+  <div class="admin-head">
+    <div>
+      <h1>Orders</h1>
+      <p class="sub">Every order in the database. Manage status, review details, or remove records.</p>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="label">Total orders</div><div class="val" id="statCount">0</div></div>
+    <div class="stat-card"><div class="label">Total revenue</div><div class="val" id="statRevenue">₱0.00</div></div>
+    <div class="stat-card"><div class="label">Processing</div><div class="val" id="statPending">0</div></div>
+    <div class="stat-card"><div class="label">Delivered</div><div class="val" id="statDelivered">0</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search by order ID, name or email…">
+    <select id="statusFilter">
+      <option value="All">All statuses</option>
+    </select>
+    <button class="btn btn-ghost" id="printListBtn">Print list</button>
+    <button class="btn btn-primary" id="clearAllBtn">Clear all orders</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="orders-table" id="ordersTable">
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ordersBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="18" height="14" rx="1"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/></svg>
+      <div>No orders yet.</div>
+      <div class="hint">Orders placed at checkout will show up here.</div>
+    </div>
+  </div>
+</main>
+
+<!-- order detail / edit modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <h2 id="mId">DW-000000</h2>
+        <p id="mDate">—</p>
+      </div>
+      <button class="modal-close" id="modalClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <h4>Customer</h4>
+      <p class="m-addr" id="mCustomer">—</p>
+
+      <h4>Delivery address</h4>
+      <p class="m-addr" id="mAddress">—</p>
+
+      <h4>Payment method</h4>
+      <p class="m-addr" id="mMethod">—</p>
+
+      <h4>Items</h4>
+      <div id="mItems"></div>
+
+      <div class="m-total-row"><span>Subtotal</span><span id="mSubtotal">₱0.00</span></div>
+      <div class="m-total-row"><span>Shipping</span><span id="mShipping">₱0.00</span></div>
+      <div class="m-total-row grand"><span>Total</span><span id="mTotal">₱0.00</span></div>
+
+      <h4>Status</h4>
+      <select class="status-select" id="mStatusSelect" style="width:100%; padding:12px;"></select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="mPrintBtn">Print receipt</button>
+      <button class="btn btn-ghost" id="mDeleteBtn" style="border-color:#a85a5a; color:#f0c4c4;">Delete order</button>
+      <button class="btn btn-primary" id="mSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- hidden printable single-receipt template -->
+<div id="printReceipt">
+  <h2>DAWN'S WARDROBE</h2>
+  <div class="p-id" id="prId">ORDER — DW-000000</div>
+  <p><strong>Customer:</strong> <span id="prCustomer"></span></p>
+  <p><strong>Address:</strong> <span id="prAddress"></span></p>
+  <p><strong>Payment:</strong> <span id="prMethod"></span></p>
+  <table>
+    <thead><tr><th>Item</th><th>Size</th><th>Color</th><th>Qty</th><th>Line total</th></tr></thead>
+    <tbody id="prItems"></tbody>
+  </table>
+  <div class="p-total"><span>Total</span><span id="prTotal"></span></div>
+</div>
+
+<script src="function.js"></script>
+<script>
+(async () => {
+  const user = await requireAuth();
+  if (!user) return;
+  document.getElementById('userName').textContent = user.name.split(' ')[0];
+
+  const ordersBody = document.getElementById('ordersBody');
+  const emptyState = document.getElementById('emptyState');
+  const searchInput = document.getElementById('searchInput');
+  const statusFilter = document.getElementById('statusFilter');
+
+  // populate status filter + modal select options
+  ORDER_STATUSES.forEach(s => {
+    const o1 = document.createElement('option'); o1.value = s; o1.textContent = s;
+    statusFilter.appendChild(o1);
+  });
+  function statusClass(s) { return 'st-' + s.toLowerCase().replace(/\s+/g, '-'); }
+  function statOf(orders, status) { return orders.filter(o => o.status === status).length; }
+
+  function renderStats(orders) {
+    document.getElementById('statCount').textContent = orders.length;
+    document.getElementById('statRevenue').textContent = formatPHP(orders.reduce((s, o) => s + o.total, 0));
+    document.getElementById('statPending').textContent = statOf(orders, 'Processing');
+    document.getElementById('statDelivered').textContent = statOf(orders, 'Delivered');
+  }
+
+  function fmtDate(ts) {
+    const d = new Date(ts);
+    return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) + ' · ' +
+           d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  let allOrders = [];
+  async function loadOrders() {
+    allOrders = await fetchOrders();
+    return allOrders;
+  }
+
+  function getFiltered() {
+    const q = searchInput.value.trim().toLowerCase();
+    const st = statusFilter.value;
+    return allOrders.filter(o => {
+      const matchesQ = !q || o.id.toLowerCase().includes(q) || (o.customerName || '').toLowerCase().includes(q) || (o.customerEmail || '').toLowerCase().includes(q);
+      const matchesSt = st === 'All' || o.status === st;
+      return matchesQ && matchesSt;
+    });
+  }
+
+  function renderTable() {
+    renderStats(allOrders);
+    const orders = getFiltered();
+
+    if (allOrders.length === 0) {
+      ordersBody.innerHTML = '';
+      emptyState.style.display = 'block';
+      document.getElementById('ordersTable').style.display = 'none';
+      return;
+    }
+    document.getElementById('ordersTable').style.display = 'table';
+    emptyState.style.display = orders.length ? 'none' : 'block';
+
+    ordersBody.innerHTML = orders.map(o => {
+      const itemCount = o.items.reduce((s, i) => s + i.qty, 0);
+      return `
+        <tr data-id="${o.id}">
+          <td class="ord-id">${o.id}</td>
+          <td class="ord-date">${fmtDate(o.date)}</td>
+          <td class="ord-cust"><b>${o.customerName || 'Guest'}</b><span>${o.customerEmail || ''}</span></td>
+          <td>${itemCount} item${itemCount > 1 ? 's' : ''}</td>
+          <td class="ord-total">${formatPHP(o.total)}</td>
+          <td>
+            <select class="status-select ${statusClass(o.status)}" data-id="${o.id}" data-action="quick-status">
+              ${ORDER_STATUSES.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" data-action="view" data-id="${o.id}" aria-label="View order">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="icon-btn danger" data-action="delete" data-id="${o.id}" aria-label="Delete order">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  await loadOrders();
+  renderTable();
+
+  searchInput.addEventListener('input', renderTable);
+  statusFilter.addEventListener('change', renderTable);
+
+  /* quick status change from table row */
+  ordersBody.addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-action="quick-status"]');
+    if (!sel) return;
+    try {
+      await updateOrderStatus(sel.dataset.id, sel.value);
+      await loadOrders();
+      sel.className = 'status-select ' + statusClass(sel.value);
+      renderTable();
+      showToast('Status updated');
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  /* row actions: view / delete */
+  ordersBody.addEventListener('click', async (e) => {
+    const viewBtn = e.target.closest('[data-action="view"]');
+    const delBtn = e.target.closest('[data-action="delete"]');
+    if (viewBtn) openModal(viewBtn.dataset.id);
+    if (delBtn) {
+      if (confirm('Delete this order? This cannot be undone.')) {
+        await deleteOrderApi(delBtn.dataset.id);
+        await loadOrders();
+        renderTable();
+        showToast('Order deleted');
+      }
+    }
+  });
+
+  /* ---------------- modal ---------------- */
+  const modalOverlay = document.getElementById('modalOverlay');
+  let currentOrderId = null;
+
+  // populate the status select inside modal once
+  const mStatusSelect = document.getElementById('mStatusSelect');
+  ORDER_STATUSES.forEach(s => {
+    const o = document.createElement('option'); o.value = s; o.textContent = s;
+    mStatusSelect.appendChild(o);
+  });
+
+  function openModal(id) {
+    const o = allOrders.find(o => o.id === id);
+    if (!o) return;
+    currentOrderId = id;
+
+    document.getElementById('mId').textContent = o.id;
+    document.getElementById('mDate').textContent = fmtDate(o.date);
+    document.getElementById('mCustomer').textContent = `${o.customerName || 'Guest'}${o.customerEmail ? ' — ' + o.customerEmail : ''}`;
+    document.getElementById('mAddress').textContent = o.address || '—';
+    document.getElementById('mMethod').textContent = ({ cash: 'Cash on delivery', gcash: 'GCash', card: 'Card' })[o.method] || o.method;
+
+    document.getElementById('mItems').innerHTML = o.items.map(i => `
+      <div class="m-item">
+        <div>
+          <div class="name">${i.name} × ${i.qty}</div>
+          <div class="meta">Size: ${i.size} · Color: ${i.color}</div>
+        </div>
+        <div>${formatPHP(i.lineTotal)}</div>
+      </div>
+    `).join('');
+
+    document.getElementById('mSubtotal').textContent = formatPHP(o.subtotal);
+    document.getElementById('mShipping').textContent = formatPHP(o.shipping);
+    document.getElementById('mTotal').textContent = formatPHP(o.total);
+    mStatusSelect.value = o.status;
+
+    modalOverlay.classList.add('show');
+  }
+  function closeModal() { modalOverlay.classList.remove('show'); currentOrderId = null; }
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+
+  document.getElementById('mSaveBtn').addEventListener('click', async () => {
+    if (!currentOrderId) return;
+    try {
+      await updateOrderStatus(currentOrderId, mStatusSelect.value);
+      await loadOrders();
+      closeModal();
+      renderTable();
+      showToast('Order updated');
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  document.getElementById('mDeleteBtn').addEventListener('click', async () => {
+    if (!currentOrderId) return;
+    if (confirm('Delete this order? This cannot be undone.')) {
+      await deleteOrderApi(currentOrderId);
+      await loadOrders();
+      closeModal();
+      renderTable();
+      showToast('Order deleted');
+    }
+  });
+
+  /* ---------------- clear all ---------------- */
+  document.getElementById('clearAllBtn').addEventListener('click', async () => {
+    if (allOrders.length === 0) return;
+    if (confirm('Delete ALL orders? This cannot be undone.')) {
+      await clearAllOrders();
+      await loadOrders();
+      renderTable();
+      showToast('All orders cleared');
+    }
+  });
+
+  /* ---------------- print: full list ---------------- */
+  document.getElementById('printListBtn').addEventListener('click', () => {
+    document.body.classList.add('printing-list');
+    window.print();
+  });
+
+  /* ---------------- print: single receipt ---------------- */
+  document.getElementById('mPrintBtn').addEventListener('click', () => {
+    if (!currentOrderId) return;
+    const o = allOrders.find(o => o.id === currentOrderId);
+    if (!o) return;
+
+    document.getElementById('prId').textContent = 'ORDER — ' + o.id;
+    document.getElementById('prCustomer').textContent = `${o.customerName || 'Guest'}${o.customerEmail ? ' (' + o.customerEmail + ')' : ''}`;
+    document.getElementById('prAddress').textContent = o.address || '—';
+    document.getElementById('prMethod').textContent = ({ cash: 'Cash on delivery', gcash: 'GCash', card: 'Card' })[o.method] || o.method;
+    document.getElementById('prItems').innerHTML = o.items.map(i => `
+      <tr><td>${i.name}</td><td>${i.size}</td><td>${i.color}</td><td>${i.qty}</td><td>${formatPHP(i.lineTotal)}</td></tr>
+    `).join('');
+    document.getElementById('prTotal').textContent = formatPHP(o.total);
+
+    document.body.classList.add('printing-receipt');
+    window.print();
+  });
+
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('printing-list');
+    document.body.classList.remove('printing-receipt');
+  });
+})();
+</script>
+</body>
+</html>
