@@ -8,10 +8,27 @@ const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const EMAIL_SERVICE = process.env.EMAIL_SERVICE || 'gmail';
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL || EMAIL_USER;
+const mailTransport = EMAIL_USER && EMAIL_PASS && NOTIFY_EMAIL
+  ? nodemailer.createTransport({
+      service: EMAIL_SERVICE,
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+    })
+  : null;
+
+if (mailTransport) {
+  console.log('Order email notifications enabled for', NOTIFY_EMAIL);
+} else {
+  console.log('Order email notifications disabled. Set EMAIL_USER, EMAIL_PASS, and NOTIFY_EMAIL to enable.');
+}
 
 app.use(cors());
 app.use(express.json());
@@ -37,6 +54,56 @@ function publicUser(u) {
 }
 function parseProduct(p) {
   return { ...p, sizes: JSON.parse(p.sizes), colors: JSON.parse(p.colors) };
+}
+function formatPHP(n) {
+  return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+async function sendOrderNotification(order) {
+  if (!mailTransport) return;
+
+  const htmlItems = order.items.map(i => `
+      <tr>
+        <td>${i.name}</td>
+        <td>${i.size || '—'}</td>
+        <td>${i.color || '—'}</td>
+        <td style="text-align:right">${i.qty}</td>
+        <td style="text-align:right">${formatPHP(i.lineTotal)}</td>
+      </tr>
+    `).join('');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#111;line-height:1.5;">
+      <h2>New order received: ${order.id}</h2>
+      <p><strong>Customer:</strong> ${order.customerName} &lt;${order.customerEmail}&gt;</p>
+      <p><strong>Payment:</strong> ${order.method}</p>
+      <p><strong>Address:</strong> ${order.address || '—'}</p>
+      <table cellpadding="6" cellspacing="0" border="1" style="border-collapse:collapse;width:100%;max-width:640px;">
+        <thead>
+          <tr>
+            <th align="left">Item</th><th align="left">Size</th><th align="left">Color</th><th align="right">Qty</th><th align="right">Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${htmlItems}
+        </tbody>
+      </table>
+      <p><strong>Subtotal:</strong> ${formatPHP(order.subtotal)}<br>
+      <strong>Shipping:</strong> ${formatPHP(order.shipping)}<br>
+      <strong>Total:</strong> ${formatPHP(order.total)}</p>
+    </div>
+  `;
+
+  try {
+    await mailTransport.sendMail({
+      from: EMAIL_USER,
+      to: NOTIFY_EMAIL,
+      subject: `New order received — ${order.id}`,
+      text: `New order ${order.id} from ${order.customerName} (${order.customerEmail}). Total ${formatPHP(order.total)}.`,
+      html
+    });
+  } catch (err) {
+    console.error('Failed to send order notification email:', err);
+  }
 }
 
 /* auth middleware: expects "Authorization: Bearer <token>" */
@@ -220,7 +287,9 @@ app.post('/api/orders', authRequired, (req, res) => {
   });
   tx();
 
-  res.status(201).json({ order: getOrderFull(orderId) });
+  const order = getOrderFull(orderId);
+  res.status(201).json({ order });
+  sendOrderNotification(order);
 });
 
 function getOrderFull(orderId) {
@@ -275,6 +344,10 @@ app.delete('/api/orders/:id', authRequired, (req, res) => {
 app.delete('/api/orders', authRequired, (req, res) => {
   db.prepare('DELETE FROM orders').run();
   res.json({ ok: true });
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'reg.html'));
 });
 
 app.listen(PORT, () => {

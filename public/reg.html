@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dawn's Wardrobe — Register or Login</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="grain"></div>
+
+<main class="auth-shell">
+  <div class="auth-visual">
+    <p class="eyebrow">Dawn's Wardrobe</p>
+    <h1>Sign in or create your account to shop.</h1>
+    <p>Everything is backed by a database now, so your cart and orders follow you across sessions.</p>
+    <div class="auth-visual-foot">
+      <span>Secure checkout</span>
+      <span>Fast delivery</span>
+    </div>
+  </div>
+  <div class="auth-form-wrap">
+    <div class="auth-card">
+      <a href="shop.html" class="brand" style="margin-bottom:28px; display:inline-flex; align-items:center; gap:10px;">
+        <span class="stitch-dot"></span>
+        <div>DAWN'S WARDROBE<small>LOGIN / REGISTER</small></div>
+      </a>
+
+      <div class="tabs">
+        <button class="tab active" id="tabLogin">Login</button>
+        <button class="tab" id="tabRegister">Register</button>
+      </div>
+      <form id="authForm">
+        <div class="field" id="nameField" style="display:none;">
+          <label for="nameInput">Full name</label>
+          <input type="text" id="nameInput" autocomplete="name">
+          <div class="err-msg" id="nameError"></div>
+        </div>
+        <div class="field">
+          <label for="emailInput">Email</label>
+          <input type="email" id="emailInput" autocomplete="email">
+          <div class="err-msg" id="emailError"></div>
+        </div>
+        <div class="field">
+          <label for="passwordInput">Password</label>
+          <input type="password" id="passwordInput" autocomplete="current-password">
+          <div class="err-msg" id="passwordError"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Login</button>
+      </form>
+      <div class="auth-switch" id="authSwitch">Don't have an account? <button id="toggleMode">Register</button></div>
+    </div>
+  </div>
+</main>
+
+<script src="function.js"></script>
+<script>
+(async () => {
+  const user = await getCurrentUser();
+  if (user) { window.location.href = 'shop.html'; return; }
+
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const nameField = document.getElementById('nameField');
+  const authSwitch = document.getElementById('authSwitch');
+  const toggleMode = document.getElementById('toggleMode');
+  const authForm = document.getElementById('authForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const nameInput = document.getElementById('nameInput');
+  const emailInput = document.getElementById('emailInput');
+  const passwordInput = document.getElementById('passwordInput');
+
+  let isLogin = true;
+  function updateMode() {
+    nameField.style.display = isLogin ? 'none' : 'block';
+    tabLogin.classList.toggle('active', isLogin);
+    tabRegister.classList.toggle('active', !isLogin);
+    submitBtn.textContent = isLogin ? 'Login' : 'Register';
+    authSwitch.innerHTML = isLogin
+      ? `Don't have an account? <button id="toggleMode">Register</button>`
+      : `Already have an account? <button id="toggleMode">Login</button>`;
+    document.getElementById('toggleMode').addEventListener('click', (e) => { e.preventDefault(); isLogin = !isLogin; updateMode(); });
+  }
+  updateMode();
+
+  tabLogin.addEventListener('click', () => { isLogin = true; updateMode(); });
+  tabRegister.addEventListener('click', () => { isLogin = false; updateMode(); });
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    try {
+      if (isLogin) {
+        await login(email, password);
+      } else {
+        await register(name, email, password);
+      }
+      window.location.href = 'shop.html';
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+})();
+</script>
+</body>
+</html>

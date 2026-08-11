@@ -1,0 +1,16 @@
+# Node modules
+/server/node_modules/
+
+# SQLite files
+/server/data.db
+/server/data.db-shm
+/server/data.db-wal
+
+# Environment files
+.env
+server/.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -48,7 +48,18 @@ dawns-wardrobe/
 5. Open that URL — it serves `public/reg.html` automatically
    (Express serves `public/` as static files, and `/api/...` is the API).
 
-### 3. Known free-tier limits
+### 3. Gmail notification setup
+If you want order notifications sent to a Google email address, set these
+environment variables in Render or your `.env` file:
+
+- `EMAIL_SERVICE=gmail`
+- `EMAIL_USER=your@gmail.com`
+- `EMAIL_PASS=your-app-password`
+- `NOTIFY_EMAIL=notify@example.com`
+
+Use a Gmail App Password if your account has 2FA enabled.
+
+### 4. Known free-tier limits
 - The service sleeps after ~15 min idle; the next visit takes ~30s to wake up.
 - The SQLite file (`server/data.db`) is **not guaranteed to persist**
   across redeploys on Render's free plan, since the filesystem is

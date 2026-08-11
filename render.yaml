@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: dawns-wardrobe
+    env: node
+    branch: main
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    autoDeploy: true
+    envVars:
+      - key: EMAIL_SERVICE
+        value: gmail
+      - key: EMAIL_USER
+        value: ''
+      - key: EMAIL_PASS
+        value: ''
+      - key: NOTIFY_EMAIL
+        value: ''
